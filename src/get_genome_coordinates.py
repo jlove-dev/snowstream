@@ -3,7 +3,6 @@ import xmltodict
 import json
 import time
 from pprint import pprint
-import streamlit as st
 
 
 
@@ -55,7 +54,6 @@ def get_genome_coordinates_refseq(acc):
 
 
 
-@st.cache_data(show_spinner=False)
 def get_genome_coordinates(homolog_dict_item):
 
     embl = uniprot2EMBL(homolog_dict_item["Uniprot Id"])
@@ -84,21 +82,18 @@ def get_genome_coordinates(homolog_dict_item):
                 return homolog_dict_item
 
             else:
-                st.error("ProteinList is not in IPGReport for "+str(homolog_dict_item['Uniprot Id']))
+                print("ProteinList is not in IPGReport for "+str(homolog_dict_item['Uniprot Id']))
         else:
-            st.error('WARNING: get_genome_coordinates eFetch request failed for '+str(homolog_dict_item['Uniprot Id']))
+            print('WARNING: get_genome_coordinates eFetch request failed for '+str(homolog_dict_item['Uniprot Id']))
     except:
         return homolog_dict_item
 
 
 
 
-@st.cache_data(show_spinner=False)
 def get_genome_coordinates_batch(homolog_dict):
 
-
-        # This was returning a 443 HTTPS error code from Uniprot when I have a slow internet connection.
-
+    print(homolog_dict)
 
     # sometimes there is "uniProtKBCrossReferences" key for a protein
     # this messes up the homolog_dict indexing, so to catch this case we need to 
@@ -114,6 +109,7 @@ def get_genome_coordinates_batch(homolog_dict):
             pass
     homolog_dict = new_homolog_dict
 
+        # This was returning a 443 HTTPS error code from Uniprot when I have a slow internet connection.
     #embl_acc_list = [uniprot2EMBL(i["Uniprot Id"]) for i in homolog_dict]
     # embl_acc_list = []
     # for i in homolog_dict:
@@ -154,7 +150,7 @@ def get_genome_coordinates_batch(homolog_dict):
         else:
             print("number of homologs doesn't match number of genome coordinates returned")
     else:
-        st.error('WARNING: get_genome_coordinates eFetch request failed')
+        print('WARNING: get_genome_coordinates eFetch request failed')
 
 
 

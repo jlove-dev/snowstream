@@ -10,7 +10,6 @@ from Bio.SeqRecord import SeqRecord
 
 from pprint import pprint
 import pandas as pd
-import streamlit as st
 
 
 
@@ -25,7 +24,6 @@ def accID2sequence(accID: str):
         return fasta
     else:
         print("FATAL: Bad eFetch request "+ str(response.status_code))
-        st.error("RefSeq ID is invalid")
         return None
 
 
@@ -37,12 +35,15 @@ def uniprotID2sequence(ID: str):
         return seq
     else:
         print("FATAL: Bad eFetch request "+ str(response.status_code))
-        st.error("Uniprot ID is invalid")
         return None
 
 
-@st.cache_data(show_spinner=False)
 def blast(acc, input_method, params, max_seqs):
+
+    print(acc)
+    print(input_method)
+    print(params)
+    print(max_seqs)
 
     if input_method == "RefSeq":
         seq = accID2sequence(acc)
@@ -61,13 +62,15 @@ def blast(acc, input_method, params, max_seqs):
     SeqIO.write(SeqRecord(Seq(seq), id="temp"), query.name, "fasta")
 
     # Select database to blast
-    diamond_db = "../databases/bHTH_RefSeq.dmnd"
+    diamond_db = "./databases/bHTH_RefSeq.dmnd"
     
-    subprocess.call(f'diamond blastp -d {diamond_db} -q {query.name} -o {tmp.name} --outfmt 6 {flags} -b {memory_limit}'
+    subprocess.call(f'./databases/diamond blastp -d {diamond_db} -q {query.name} -o {tmp.name} --outfmt 6 {flags} -b {memory_limit}'
                     f' --id {params["ident_cutoff"]} --query-cover {params["cov_cutoff"]} --max-target-seqs {max_seqs} >> {log.name} 2>&1' , shell=True)
 
     with open(tmp.name, "r") as file_handle:  #opens BLAST file
         align = file_handle.readlines()
+
+    print(align)
 
     tmp.close()
     query.close()
@@ -101,14 +104,4 @@ def blast(acc, input_method, params, max_seqs):
 
 if __name__ == "__main__":
 
-    #uniprotID2sequence("A0A170ND59")
     acc = "ACS29497.1"
-    #print(accID2sequence(acc))
-
-    # if acc != None:
-    #     df = blast(acc)
-    #     pprint(df)
-    # else:
-    #     print("bad seq")
-
-    # print(seq)
