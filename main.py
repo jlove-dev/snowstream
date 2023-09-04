@@ -87,9 +87,6 @@ import time
 #     # -100 - 1
 
 def set_params(param_obj):
-    acc = param_obj["acc"]
-    input_method = param_obj["method"]
-
     blast_params = {
         "ident_cutoff": param_obj["identity"],
         "cov_cutoff": param_obj["coverage"]
@@ -112,16 +109,23 @@ def set_params(param_obj):
         "min_operator_length": param_obj["minOperator"],
         "max_operator_length": param_obj["maxOperator"],
         "seq_to_align": None,
-        "search_method": param_obj["method"]
+        "search_method": param_obj["conservation"]
     }
 
-    return acc, input_method, blast_params, promoter_params, operator_params
+    return blast_params, promoter_params, operator_params
 
 # (1) BLAST protein. return a dataframe
 
-def perform_blast(acc, input_method, blast_params, promoter_params, operator_params, genomeChoice):
+def perform_blast(blast_params, promoter_params, operator_params, data):
+    genome_choice = data["genomeChoice"]
+    filter_redundant = data["filter"]
+    acc = data["acc"]
+    input_method = data["method"]
+    max_homologs = data["homologs"]
+
     blast_df = blast(acc, input_method, blast_params, max_seqs=500)
     homolog_dict = []
+
 
     if not blast_df.empty:
 
@@ -151,11 +155,9 @@ def perform_blast(acc, input_method, blast_params, promoter_params, operator_par
         ### DISPLAY homolog_dict in the frontend
         print("blast finished.")
 
-    print(homolog_dict)
-
     # (2) Get genome coordianates. Return a dataframe
 
-    if genomeChoice == "batch":
+    if genome_choice == "batch":
         homolog_dict = get_genome_coordinates_batch(homolog_dict)
 
         #TODO: I get an error here sometimes.
@@ -165,7 +167,7 @@ def perform_blast(acc, input_method, blast_params, promoter_params, operator_par
             homolog_dict = [i for i in homolog_dict if i != None]
 
 
-    elif genomeChoice == "individually":
+    elif genome_choice == "individually":
 
         updated_homolog_dict = []
         for i in range(0, len(homolog_dict)):
@@ -218,7 +220,6 @@ def perform_blast(acc, input_method, blast_params, promoter_params, operator_par
 
     # Display the consensus sequence
     consensus_seq = operator_dict["consensus_seq"]
-    print(consensus_seq)
 
     # Create & Display the consensus motif logo
     motif = operator_dict["motif"]
@@ -245,9 +246,9 @@ if __name__ == "__main__":
 
     # docker run -v "$(pwd)/passedData.json:/passedData.json" snowprint
 
-    acc, input_method, blast_params, promoter_params, operator_params = set_params(data)
+    blast_params, promoter_params, operator_params = set_params(data)
 
-    homolog, coordinates, aligned, consensus, num = perform_blast(acc, input_method, blast_params, promoter_params, operator_params, data["genomeChoice"])
+    homolog, coordinates, aligned, consensus, num = perform_blast(blast_params, promoter_params, operator_params, data)
 
     print(homolog)
     print(coordinates)

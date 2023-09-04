@@ -93,8 +93,6 @@ def get_genome_coordinates(homolog_dict_item):
 
 def get_genome_coordinates_batch(homolog_dict):
 
-    print(homolog_dict)
-
     # sometimes there is "uniProtKBCrossReferences" key for a protein
     # this messes up the homolog_dict indexing, so to catch this case we need to 
     # create a new homolog dict that only includes proteins with the "uniProtKBCrossReferences" key

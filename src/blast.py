@@ -40,11 +40,6 @@ def uniprotID2sequence(ID: str):
 
 def blast(acc, input_method, params, max_seqs):
 
-    print(acc)
-    print(input_method)
-    print(params)
-    print(max_seqs)
-
     if input_method == "RefSeq":
         seq = accID2sequence(acc)
     elif input_method == "Uniprot":
@@ -69,8 +64,6 @@ def blast(acc, input_method, params, max_seqs):
 
     with open(tmp.name, "r") as file_handle:  #opens BLAST file
         align = file_handle.readlines()
-
-    print(align)
 
     tmp.close()
     query.close()

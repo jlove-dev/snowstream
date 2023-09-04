@@ -245,6 +245,8 @@ def generate_frequency_matrix(homolog_metadata):
 
 def fetch_operator(homolog_metadata, params):
 
+    operators = []
+
     ext_length = params["extension_length"]
     acc = homolog_metadata[0]["Uniprot Id"]
     regulated_seqs = [h["promoter"] for h in homolog_metadata]
