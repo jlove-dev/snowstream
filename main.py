@@ -11,80 +11,13 @@ import requests
 import json
 import sys
 import ast
-
+import os
+import base64
+import boto3
 import time
+import hashlib
 
-
-# input_method = "RefSeq"
-#     # "Uniprot"
-#     # "Protein sequence"
-
-#     # these are placeholders. acc is the only required input from the user.
-# if input_method == "RefSeq":
-#     acc = "WP_013083972.1"
-# elif input_method == "Uniprot":
-#     acc = "P43506"
-# elif input_method == "Protein sequence":
-#     acc = "P43506"
-#     # get a string input from the user.
-
-# input_method = "RefSeq"
-# acc = None
-
-# # Tunable BLAST parameters
-# ident_cutoff = 40
-#     # 30 - 90
-# cov_cutoff = 90
-#     # 60 - 100
-# max_homologs = 30
-#     # 10 - 100
-# filter_redundant = True
-
-
-# # Tunable promoters search parameters
-# prom_min_length = 80
-#     # 1 - 500
-# prom_max_length = 800
-#     # 20 - 9000
-# get_coordinates_method = "batch"
-#     # individually
-
-
-# # Tunable operator search parameters
-# search_method = "look"
-#     # Align an input sequence
-#         # Have the user input a string
-#     # Scan entire promoter region
-#         # True/False
-# if search_method == "Look for inverted repeats":
-#     win_score = 2
-#         # 0 - 10
-#     loss_score = -2
-#         # -10 - 0
-#     min_operator_length = 5
-#         # 3 - 10
-#     max_operator_length = 15
-#         # 11 - 40
-#     spacer_penalty = \
-#         [{"0":4, "1":4, "2":4, "3":4, "4":4, "5":2, "6":2, "7":0, "8":0, "9":-2, "10":-2, \
-#         "11":-4, "12":-4, "13":-6, "14":-6, "15":-8, "16":-8, "17":-10, "18":-10, "19":-12, "20":-12}]
-#     seq_to_align = None
-        
-# # if search_method = "Align an input sequence":
-#     # seq_to_align = input sequence
-
-
-# # Tunable promoter alignment parameters
-# extension_length = 5
-#     # 0 - 10
-# gap_open = -100
-#     # -999 - 0
-# gap_extend = 0
-#     # -999 - 0
-# align_match = 2
-#     # 1 - 100
-# align_mismatch = -0.5
-#     # -100 - 1
+from decimal import Decimal
 
 def set_params(param_obj):
     blast_params = {
@@ -233,25 +166,76 @@ def perform_blast(blast_params, promoter_params, operator_params, data):
     return homolog_dict, cooridnates_df, pd.DataFrame(operator_dict["aligned_seqs"]), operator_dict["consensus_score"], operator_dict["num_seqs"]
     ### DISPLAY motif_html
 
+def format_homologs(homolog_dict):
+    extracted_dict = [{"coverage": d["coverage"], "identity": d["identity"], "Uniprot Id": d["Uniprot Id"], "promoter": d["promoter"]} for d in homolog_dict]
+    return extracted_dict
+
+def write_results_to_db(table, extracted_dict, coordinates, aligned, consensus, num, passed_in_data, PASSED_UUID):
+
+    primary = passed_in_data["acc"]
+
+    # Construct a sha-256 hash for future reference if these advanced options have been done before
+    json_string = json.dumps(passed_in_data, sort_keys=True)
+    hashed = hashlib.sha256(json_string.encode()).hexdigest()
+
+    Item={
+        'PK': primary,
+        'SK': PASSED_UUID,
+        'homolog': extracted_dict,
+        'coordinates': coordinates,
+        'aligned': aligned,
+        'consensus': consensus,
+        'num': num,
+        'hash': hashed
+        }
+
+    # Prepare DynamoDB
+    parsed_data = json.loads(json.dumps(Item), parse_float=Decimal)
+    dynamodb = boto3.resource('dynamodb', region_name='us-east-2')
+    table = dynamodb.Table(TABLE_NAME)
+
+    # Write data
+    try:
+        table.put_item(
+            Item=parsed_data
+        )
+    except Exception as e:
+        print(e)
+
 if __name__ == "__main__":
 
-    data = {}
+    # The following code may look strange but there is a method to the madness:
+    # My goal is to create ECS tasks that are completely async - they get data and then write to a DynamoDB when they are done
+    # I didn't want them to be dependent on any other AWS service to further complicate things
+    # This task is started by lambda to keep costs as low as possible
+    # The challenge became - how do we get JSON data into an ECS container?
+    # One solution could be using S3 but then we'd need to create unique JSON files in S3 and feed that specific file name to the container
+    # ^ This felt like a waste of a service to just hold a json object
+    # Another idea was just to create a file in /tmp/ in lambda but there's no way to specify a volume source location in boto3
+    # ^ You can configure a mountPoint in the ECS task definition but again, using NamedTemporaryFile results in a unique name which can't be overwritten in containerOverrides
+    # Then - I tried to just stringify the JSON object and pass it into the container with -e through docker
+    # This would have worked but an object in the format of '{"some":"value"}' threw an error since docker through it was the repository name no matter what way to shook it
+    
+    # Thus - this solution is born:
+    # 1. Lambda recieves the event body from the API requests
+    # 2. It encodes it into base64 (this format ensures docker does not think it's a repository name) and passes in the environment variable (no need for a file)
+    # 3. This container reads the environment variable
+    # 4. It then must decode the base64, decode the bytestring, then double json.loads to get a valid python dict
 
-    file_path = '/passedData.json'
+    # Get environment
+    PASSED_IN_JSON = os.environ['PASSED_IN_JSON']
+    TABLE_NAME = os.environ['TABLE_NAME']
+    PASSED_UUID = os.environ['UUID']
 
-    with open(file_path, 'r') as file:
-        data = json.load(file)
+    # Decode base64 JSON
+    decode_base64 = base64.b64decode(PASSED_IN_JSON)
+    decode_bytes = decode_base64.decode('utf-8')
+    data = json.loads(decode_bytes)
 
-    # docker build -t snowprint .
-
-    # docker run -v "$(pwd)/passedData.json:/passedData.json" snowprint
-
+    # Start snowprint
     blast_params, promoter_params, operator_params = set_params(data)
-
     homolog, coordinates, aligned, consensus, num = perform_blast(blast_params, promoter_params, operator_params, data)
 
-    print(homolog)
-    print(coordinates)
-    print(aligned)
-    print(consensus)
-    print(num)
+    # Write results
+    extracted_dict = format_homologs(homolog)
+    write_results_to_db(TABLE_NAME, extracted_dict, coordinates.to_dict('records'), aligned.to_dict('records'), consensus, num, data, PASSED_UUID)
