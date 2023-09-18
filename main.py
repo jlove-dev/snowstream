@@ -111,7 +111,7 @@ def perform_blast(blast_params, promoter_params, operator_params, data):
 
 
     homolog_dict = [i for i in homolog_dict if "Genome" in i.keys()]
-    cooridnates_df = pd.DataFrame(homolog_dict).drop(columns=["identity", "coverage"])
+    coordinates_df = pd.DataFrame(homolog_dict).drop(columns=["identity", "coverage"])
 
     ### DISPLAY coordinates_df in the frontend
     print("genome coordinates fetched.")
@@ -162,17 +162,30 @@ def perform_blast(blast_params, promoter_params, operator_params, data):
         motif_html += "<span style='color: "+str(color_key[i["base"].upper()])+"; font-size: 400%; font-weight: 550;display: inline-block; \
             transform:  translateY("+str(1.25-i["score"]**3)+"em)  scaleY("+str(3*i["score"]**3)+") '>"+str(i["base"])+"</span>"
     motif_html += "</div>"
-    
-    return homolog_dict, cooridnates_df, pd.DataFrame(operator_dict["aligned_seqs"]), operator_dict["consensus_score"], operator_dict["num_seqs"]
-    ### DISPLAY motif_html
 
+    return_data = {
+        "homolog_dict": homolog_dict,
+        "coordinates_df": coordinates_df,
+        "aligned_seqs": pd.DataFrame(operator_dict["aligned_seqs"]),
+        "consensus_score": operator_dict["consensus_score"],
+        "num_seqs": operator_dict["num_seqs"],
+        "html": html,
+        "consensus_seq": consensus_seq,
+        "motif_html": motif_html
+    }
+
+    return return_data
+    
 def format_homologs(homolog_dict):
     extracted_dict = [{"coverage": d["coverage"], "identity": d["identity"], "Uniprot Id": d["Uniprot Id"], "promoter": d["promoter"]} for d in homolog_dict]
     return extracted_dict
 
-def write_results_to_db(table, extracted_dict, coordinates, aligned, consensus, num, passed_in_data, PASSED_UUID):
+# def write_results_to_db(table, extracted_dict, coordinates, aligned, consensus, num, passed_in_data, PASSED_UUID):
+def write_results_to_db(table, extracted_dict, return_data, passed_in_data, PASSED_UUID):
 
     primary = passed_in_data["acc"]
+    coordinates = return_data["coordinates_df"].to_dict('records')
+    aligned_seqs = return_data["aligned_seqs"].to_dict('records')
 
     # Construct a sha-256 hash for future reference if these advanced options have been done before
     json_string = json.dumps(passed_in_data, sort_keys=True)
@@ -183,9 +196,12 @@ def write_results_to_db(table, extracted_dict, coordinates, aligned, consensus, 
         'SK': PASSED_UUID,
         'homolog': extracted_dict,
         'coordinates': coordinates,
-        'aligned': aligned,
-        'consensus': consensus,
-        'num': num,
+        'aligned_seq': aligned_seqs,
+        'consensus_score': return_data["consensus_score"],
+        'num_seqs': return_data["num_seqs"],
+        "html": return_data["html"],
+        "consensus_seq": return_data["consensus_seq"],
+        "motif_html": return_data["motif_html"],
         'hash': hashed
         }
 
@@ -234,8 +250,8 @@ if __name__ == "__main__":
 
     # Start snowprint
     blast_params, promoter_params, operator_params = set_params(data)
-    homolog, coordinates, aligned, consensus, num = perform_blast(blast_params, promoter_params, operator_params, data)
+    return_data = perform_blast(blast_params, promoter_params, operator_params, data)
 
     # Write results
-    extracted_dict = format_homologs(homolog)
-    write_results_to_db(TABLE_NAME, extracted_dict, coordinates.to_dict('records'), aligned.to_dict('records'), consensus, num, data, PASSED_UUID)
+    extracted_dict = format_homologs(return_data["homolog_dict"])
+    write_results_to_db(TABLE_NAME, extracted_dict, return_data, data, PASSED_UUID)
