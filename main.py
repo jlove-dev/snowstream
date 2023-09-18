@@ -202,7 +202,8 @@ def write_results_to_db(table, extracted_dict, return_data, passed_in_data, PASS
         "html": return_data["html"],
         "consensus_seq": return_data["consensus_seq"],
         "motif_html": return_data["motif_html"],
-        'hash': hashed
+        'hash': hashed,
+        'status': 'complete'
         }
 
     # Prepare DynamoDB
