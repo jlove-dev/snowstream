@@ -41,7 +41,7 @@ def set_params(param_obj):
         "align_mismatch": param_obj["alignMismatch"],
         "min_operator_length": param_obj["minOperator"],
         "max_operator_length": param_obj["maxOperator"],
-        "seq_to_align": None,
+        "seq_to_align": param_obj["seqToAlign"],
         "search_method": param_obj["conservation"]
     }
 
@@ -156,12 +156,20 @@ def perform_blast(blast_params, promoter_params, operator_params, data):
 
     # Create & Display the consensus motif logo
     motif = operator_dict["motif"]
-    motif_html = "<div>"
+    motif_html = []
     color_key = {"A":"red", "T": "green", "C": "blue", "G": "#fcba03"}
     for i in motif:
-        motif_html += "<span style='color: "+str(color_key[i["base"].upper()])+"; font-size: 400%; font-weight: 550;display: inline-block; \
-            transform:  translateY("+str(1.25-i["score"]**3)+"em)  scaleY("+str(3*i["score"]**3)+") '>"+str(i["base"])+"</span>"
-    motif_html += "</div>"
+        motif_html.append(
+            {
+                "color": str(color_key[i["base"].upper()]),
+                "fontSize": 400,
+                "fontWeight": 550,
+                "display": 'inline-block',
+                "translateY": str(1.25-i["score"]**3),
+                "scaleY": str(3*i["score"]**3),
+                "base": str(i["base"])
+            }
+        )
 
     return_data = {
         "homolog_dict": homolog_dict,
